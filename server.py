@@ -34,7 +34,7 @@ def showSummary():
     )
 
     if club is None:
-        flash("Adresse e-mail inconnue. Veuillez réessayer.")
+        flash("Adresse e-mail inconnue. Veuillez r\u00e9essayer.")
         return redirect(url_for('index'))
 
     return render_template(
@@ -54,12 +54,36 @@ def book(competition,club):
         return render_template('welcome.html', club=club, competitions=competitions)
 
 
-@app.route('/purchasePlaces',methods=['POST'])
+@app.route('/purchasePlaces', methods=['POST'])
 def purchasePlaces():
-    competition = [c for c in competitions if c['name'] == request.form['competition']][0]
-    club = [c for c in clubs if c['name'] == request.form['club']][0]
-    placesRequired = int(request.form['places'])
-    competition['numberOfPlaces'] = int(competition['numberOfPlaces'])-placesRequired
+    competition = next(
+        (c for c in competitions if c['name'] == request.form.get('competition')),
+        None
+    )
+    club = next(
+        (c for c in clubs if c['name'] == request.form.get('club')),
+        None
+    )
+
+    if competition is None or club is None:
+        flash("Club ou comp\u00e9tition introuvable.")
+        return redirect(url_for('index'))
+
+    try:
+        placesRequired = int(request.form.get('places', ''))
+    except (TypeError, ValueError):
+        flash("Veuillez saisir un nombre de places valide.")
+        return redirect(url_for('book', competition=competition['name'], club=club['name']))
+
+    if placesRequired <= 0:
+        flash("Le nombre de places doit \u00eatre sup\u00e9rieur \u00e0 z\u00e9ro.")
+        return redirect(url_for('book', competition=competition['name'], club=club['name']))
+
+    if placesRequired > 12:
+        flash("Vous ne pouvez pas r\u00e9server plus de 12 places par comp\u00e9tition.")
+        return redirect(url_for('book', competition=competition['name'], club=club['name']))
+
+    competition['numberOfPlaces'] = int(competition['numberOfPlaces']) - placesRequired
     flash('Great-booking complete!')
     return render_template('welcome.html', club=club, competitions=competitions)
 
