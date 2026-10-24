@@ -1,5 +1,6 @@
 
 import json
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, flash, url_for
 
 
@@ -86,6 +87,22 @@ def purchasePlaces():
     if competition is None or club is None:
         flash("Club ou competition introuvable.")
         return redirect(url_for('index'))
+
+    try:
+        dateCompetition = datetime.strptime(
+            competition['date'], '%Y-%m-%d %H:%M:%S'
+        )
+    except (KeyError, TypeError, ValueError):
+        flash("La date de cette competition est invalide.")
+        return redirect(
+            url_for('book', competition=competition['name'], club=club['name'])
+        )
+
+    if dateCompetition <= datetime.now():
+        flash("Impossible de reserver une competition passee.")
+        return redirect(
+            url_for('book', competition=competition['name'], club=club['name'])
+        )
 
     try:
         placesRequired = int(request.form.get('places', ''))

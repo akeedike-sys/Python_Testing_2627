@@ -14,6 +14,8 @@ def test_purchase_more_than_12_places_is_rejected():
     )
 
     original_places = competition["numberOfPlaces"]
+    date_originale = competition["date"]
+    competition["date"] = "2099-03-27 10:00:00"
     original_points = club["points"]
 
     try:
@@ -32,7 +34,8 @@ def test_purchase_more_than_12_places_is_rejected():
 
         redirected_response = client.get(response.location, follow_redirects=True)
         assert redirected_response.status_code == 200
-        assert b"12" in redirected_response.data
+        assert "Vous ne pouvez pas reserver plus de 12 places" in redirected_response.get_data(as_text=True)
     finally:
+        competition["date"] = date_originale
         competition["numberOfPlaces"] = original_places
         club["points"] = original_points

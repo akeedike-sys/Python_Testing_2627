@@ -14,6 +14,8 @@ def test_une_reservation_deduit_les_points_du_club():
     )
 
     places_initiales = competition["numberOfPlaces"]
+    date_originale = competition["date"]
+    competition["date"] = "2099-03-27 10:00:00"
     points_initiaux = club["points"]
 
     try:
@@ -30,5 +32,6 @@ def test_une_reservation_deduit_les_points_du_club():
         assert int(competition["numberOfPlaces"]) == int(places_initiales) - 2
         assert int(club["points"]) == int(points_initiaux) - 2
     finally:
+        competition["date"] = date_originale
         competition["numberOfPlaces"] = places_initiales
         club["points"] = points_initiaux
