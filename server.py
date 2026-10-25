@@ -1,7 +1,8 @@
 
 import json
+from functools import wraps
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, flash, url_for
+from flask import Flask, render_template, request, redirect, flash, url_for, session
 
 
 def loadClubs():
@@ -23,6 +24,34 @@ competitions = loadCompetitions()
 clubs = loadClubs()
 
 
+def club_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        club_email = session.get("club_email")
+        if not club_email:
+            flash("Veuillez vous connecter pour continuer.")
+            return redirect(url_for("index"))
+
+        club = next(
+            (c for c in clubs
+             if c.get("email", "").strip().lower() == club_email),
+            None
+        )
+        if club is None:
+            session.clear()
+            flash("Session invalide. Veuillez vous reconnecter.")
+            return redirect(url_for("index"))
+
+        # Ne pas autoriser un autre club dans l'URL ou le formulaire.
+        requested_club = kwargs.get("club")
+        if requested_club and requested_club != club["name"]:
+            flash("Acces refuse pour ce club.")
+            return redirect(url_for("index"))
+
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -41,6 +70,9 @@ def showSummary():
     if club is None:
         flash("Adresse e-mail inconnue. Veuillez reessayer.")
         return redirect(url_for('index'))
+
+    session.clear()
+    session["club_email"] = club["email"].strip().lower()
 
     competitions_a_venir = []
     for comp in competitions:
@@ -61,6 +93,7 @@ def showSummary():
     )
 
 @app.route('/book/<competition>/<club>')
+@club_required
 def book(competition, club):
     foundClub = next(
         (c for c in clubs if c['name'] == club),
@@ -83,9 +116,20 @@ def book(competition, club):
 
 
 @app.route('/purchasePlaces', methods=['POST'])
+@club_required
 def purchasePlaces():
     competitionName = request.form.get('competition', '')
     clubName = request.form.get('club', '')
+    session_email = session.get("club_email")
+    session_club = next(
+        (c for c in clubs
+         if c.get("email", "").strip().lower() == session_email),
+        None
+    )
+
+    if session_club is None or clubName != session_club["name"]:
+        flash("Acces refuse pour ce club.")
+        return redirect(url_for("index"))
 
     competition = next(
         (c for c in competitions if c['name'] == competitionName),
@@ -167,4 +211,6 @@ def purchasePlaces():
 
 @app.route('/logout')
 def logout():
+    session.clear()
+    flash("Vous avez ete deconnecte.")
     return redirect(url_for('index'))

@@ -3,6 +3,11 @@
 
 def test_une_reservation_deduit_les_points_du_club():
     client = server.app.test_client()
+    connexion = client.post(
+        "/showSummary",
+        data={"email": "john@simplylift.co"},
+    )
+    assert connexion.status_code == 200
 
     competition = next(
         c for c in server.competitions
