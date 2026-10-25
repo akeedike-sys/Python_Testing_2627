@@ -1,0 +1,33 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Classement public des clubs</title>
+</head>
+<body>
+    <h1>Classement public des points</h1>
+    <p>Points disponibles pour chaque club.</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Rang</th>
+                <th>Club</th>
+                <th>Points disponibles</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for club in clubs %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ club.name }}</td>
+                <td>{{ club.points }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p><a href="{{ url_for('index') }}">Retour à l'accueil</a></p>
+</body>
+</html>
