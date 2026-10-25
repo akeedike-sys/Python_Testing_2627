@@ -20,6 +20,9 @@ app.secret_key = 'something_special'
 competitions = loadCompetitions()
 clubs = loadClubs()
 
+# R?servations cumul?es par club et comp?tition.
+reservations = {}
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -66,24 +69,44 @@ def purchasePlaces():
     )
 
     if competition is None or club is None:
-        flash("Club ou comp\u00e9tition introuvable.")
+        flash("Club ou comp?tition introuvable.")
         return redirect(url_for('index'))
+
+    booking_url = url_for(
+        'book', competition=competition['name'], club=club['name']
+    )
 
     try:
         placesRequired = int(request.form.get('places', ''))
-    except (TypeError, ValueError):
-        flash("Veuillez saisir un nombre de places valide.")
-        return redirect(url_for('book', competition=competition['name'], club=club['name']))
+        placesAvailable = int(competition['numberOfPlaces'])
+        pointsAvailable = int(club['points'])
+    except (TypeError, ValueError, KeyError):
+        flash("Donn?es de r?servation invalides.")
+        return redirect(booking_url)
 
     if placesRequired <= 0:
-        flash("Le nombre de places doit \u00eatre sup\u00e9rieur \u00e0 z\u00e9ro.")
-        return redirect(url_for('book', competition=competition['name'], club=club['name']))
+        flash("Le nombre de places doit ?tre sup?rieur ? z?ro.")
+        return redirect(booking_url)
 
-    if placesRequired > 12:
-        flash("Vous ne pouvez pas r\u00e9server plus de 12 places par comp\u00e9tition.")
-        return redirect(url_for('book', competition=competition['name'], club=club['name']))
+    reservationKey = (club['name'], competition['name'])
+    placesAlreadyReserved = reservations.get(reservationKey, 0)
 
-    competition['numberOfPlaces'] = int(competition['numberOfPlaces']) - placesRequired
+    if placesAlreadyReserved + placesRequired > 12:
+        flash("Vous ne pouvez pas r?server plus de 12 places par comp?tition.")
+        return redirect(booking_url)
+
+    if placesRequired > placesAvailable:
+        flash("Il n'y a pas assez de places disponibles.")
+        return redirect(booking_url)
+
+    if placesRequired > pointsAvailable:
+        flash("Votre club n'a pas assez de points.")
+        return redirect(booking_url)
+
+    competition['numberOfPlaces'] = placesAvailable - placesRequired
+    club['points'] = pointsAvailable - placesRequired
+    reservations[reservationKey] = placesAlreadyReserved + placesRequired
+
     flash('Great-booking complete!')
     return render_template('welcome.html', club=club, competitions=competitions)
 
