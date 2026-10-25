@@ -33,7 +33,8 @@ def showSummary():
     email = request.form.get('email', '').strip()
 
     club = next(
-        (club for club in clubs if club['email'].strip().lower() == email.lower()),
+        (club for club in clubs
+         if club['email'].strip().lower() == email.lower()),
         None
     )
 
@@ -41,12 +42,23 @@ def showSummary():
         flash("Adresse e-mail inconnue. Veuillez reessayer.")
         return redirect(url_for('index'))
 
+    competitions_a_venir = []
+    for comp in competitions:
+        try:
+            date_competition = datetime.strptime(
+                comp['date'], '%Y-%m-%d %H:%M:%S'
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        if date_competition > datetime.now():
+            competitions_a_venir.append(comp)
+
     return render_template(
         'welcome.html',
         club=club,
-        competitions=competitions
+        competitions=competitions_a_venir
     )
-
 
 @app.route('/book/<competition>/<club>')
 def book(competition, club):
