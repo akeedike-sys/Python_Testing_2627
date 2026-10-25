@@ -33,22 +33,25 @@ def club_required(view):
             return redirect(url_for("index"))
 
         club = next(
-            (c for c in clubs
-             if c.get("email", "").strip().lower() == club_email),
+            (
+                c for c in clubs
+                if c.get("email", "").strip().lower() == club_email
+            ),
             None
         )
+
         if club is None:
             session.clear()
             flash("Session invalide. Veuillez vous reconnecter.")
             return redirect(url_for("index"))
 
-        # Ne pas autoriser un autre club dans l'URL ou le formulaire.
         requested_club = kwargs.get("club")
         if requested_club and requested_club != club["name"]:
             flash("Acces refuse pour ce club.")
             return redirect(url_for("index"))
 
         return view(*args, **kwargs)
+
     return wrapped_view
 
 
@@ -62,8 +65,10 @@ def showSummary():
     email = request.form.get('email', '').strip()
 
     club = next(
-        (club for club in clubs
-         if club['email'].strip().lower() == email.lower()),
+        (
+            club for club in clubs
+            if club['email'].strip().lower() == email.lower()
+        ),
         None
     )
 
@@ -75,6 +80,7 @@ def showSummary():
     session["club_email"] = club["email"].strip().lower()
 
     competitions_a_venir = []
+
     for comp in competitions:
         try:
             date_competition = datetime.strptime(
@@ -92,6 +98,7 @@ def showSummary():
         competitions=competitions_a_venir
     )
 
+
 @app.route('/book/<competition>/<club>')
 @club_required
 def book(competition, club):
@@ -99,6 +106,7 @@ def book(competition, club):
         (c for c in clubs if c['name'] == club),
         None
     )
+
     foundCompetition = next(
         (c for c in competitions if c['name'] == competition),
         None
@@ -121,9 +129,12 @@ def purchasePlaces():
     competitionName = request.form.get('competition', '')
     clubName = request.form.get('club', '')
     session_email = session.get("club_email")
+
     session_club = next(
-        (c for c in clubs
-         if c.get("email", "").strip().lower() == session_email),
+        (
+            c for c in clubs
+            if c.get("email", "").strip().lower() == session_email
+        ),
         None
     )
 
@@ -135,6 +146,7 @@ def purchasePlaces():
         (c for c in competitions if c['name'] == competitionName),
         None
     )
+
     club = next(
         (c for c in clubs if c['name'] == clubName),
         None
@@ -151,13 +163,21 @@ def purchasePlaces():
     except (KeyError, TypeError, ValueError):
         flash("La date de cette competition est invalide.")
         return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
+            url_for(
+                'book',
+                competition=competition['name'],
+                club=club['name']
+            )
         )
 
     if dateCompetition <= datetime.now():
         flash("Impossible de reserver une competition passee.")
         return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
+            url_for(
+                'book',
+                competition=competition['name'],
+                club=club['name']
+            )
         )
 
     try:
@@ -165,31 +185,51 @@ def purchasePlaces():
     except (TypeError, ValueError):
         flash("Veuillez saisir un nombre de places valide.")
         return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
+            url_for(
+                'book',
+                competition=competition['name'],
+                club=club['name']
+            )
         )
 
     if placesRequired <= 0:
         flash("Le nombre de places doit etre superieur a zero.")
         return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
+            url_for(
+                'book',
+                competition=competition['name'],
+                club=club['name']
+            )
         )
 
     if placesRequired > 12:
         flash("Vous ne pouvez pas reserver plus de 12 places par competition.")
         return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
+            url_for(
+                'book',
+                competition=competition['name'],
+                club=club['name']
+            )
         )
 
     if int(club['points']) < placesRequired:
         flash("Votre club ne possede pas assez de points.")
         return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
+            url_for(
+                'book',
+                competition=competition['name'],
+                club=club['name']
+            )
         )
 
     if int(competition['numberOfPlaces']) < placesRequired:
         flash("Il ne reste pas assez de places pour cette competition.")
         return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
+            url_for(
+                'book',
+                competition=competition['name'],
+                club=club['name']
+            )
         )
 
     # Mettre a jour les places et les points uniquement si la reservation est valide.
@@ -199,6 +239,7 @@ def purchasePlaces():
     club['points'] = int(club['points']) - placesRequired
 
     flash("Reservation effectuee avec succes !")
+
     return render_template(
         'welcome.html',
         club=club,
@@ -206,7 +247,20 @@ def purchasePlaces():
     )
 
 
-# TODO: Ajouter la route d'affichage du classement des points
+@app.route('/points')
+def points():
+    """Afficher publiquement le classement des clubs."""
+    try:
+        classement = sorted(
+            clubs,
+            key=lambda club: int(club["points"]),
+            reverse=True,
+        )
+    except (KeyError, TypeError, ValueError):
+        flash("Impossible de charger le classement des clubs.")
+        return redirect(url_for("index"))
+
+    return render_template("points.html", clubs=classement)
 
 
 @app.route('/logout')
