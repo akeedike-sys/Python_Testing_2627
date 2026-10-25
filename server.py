@@ -1,52 +1,58 @@
 
 import json
 from datetime import datetime
+
 from flask import Flask, render_template, request, redirect, flash, url_for
 
 
 def loadClubs():
-    with open('clubs.json', encoding='utf-8') as c:
-        listOfClubs = json.load(c)['clubs']
-        return listOfClubs
+    with open("clubs.json", encoding="utf-8") as c:
+        return json.load(c)["clubs"]
 
 
 def loadCompetitions():
-    with open('competitions.json', encoding='utf-8') as comps:
-        listOfCompetitions = json.load(comps)['competitions']
-        return listOfCompetitions
+    with open("competitions.json", encoding="utf-8") as comps:
+        return json.load(comps)["competitions"]
 
 
 app = Flask(__name__)
-app.secret_key = 'something_special'
+app.secret_key = "something_special"
 
 competitions = loadCompetitions()
 clubs = loadClubs()
 
+# Suivi des réservations par club et par compétition.
+# Attention : ces données sont conservées uniquement en mémoire.
+reservations = {}
 
-@app.route('/')
+
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
 
-@app.route('/showSummary', methods=['POST'])
+@app.route("/showSummary", methods=["POST"])
 def showSummary():
-    email = request.form.get('email', '').strip()
+    email = request.form.get("email", "").strip().lower()
 
     club = next(
-        (club for club in clubs
-         if club['email'].strip().lower() == email.lower()),
-        None
+        (
+            c for c in clubs
+            if c.get("email", "").strip().lower() == email
+        ),
+        None,
     )
 
     if club is None:
-        flash("Adresse e-mail inconnue. Veuillez reessayer.")
-        return redirect(url_for('index'))
+        flash("Adresse e-mail inconnue. Veuillez réessayer.")
+        return redirect(url_for("index"))
 
     competitions_a_venir = []
+
     for comp in competitions:
         try:
             date_competition = datetime.strptime(
-                comp['date'], '%Y-%m-%d %H:%M:%S'
+                comp["date"], "%Y-%m-%d %H:%M:%S"
             )
         except (KeyError, TypeError, ValueError):
             continue
@@ -55,116 +61,155 @@ def showSummary():
             competitions_a_venir.append(comp)
 
     return render_template(
-        'welcome.html',
+        "welcome.html",
         club=club,
-        competitions=competitions_a_venir
+        competitions=competitions_a_venir,
     )
 
-@app.route('/book/<competition>/<club>')
+
+@app.route("/book/<competition>/<club>")
 def book(competition, club):
-    foundClub = next(
-        (c for c in clubs if c['name'] == club),
-        None
+    found_club = next(
+        (c for c in clubs if c["name"] == club),
+        None,
     )
-    foundCompetition = next(
-        (c for c in competitions if c['name'] == competition),
-        None
+    found_competition = next(
+        (c for c in competitions if c["name"] == competition),
+        None,
     )
 
-    if foundClub is None or foundCompetition is None:
-        flash("Club ou competition introuvable.")
-        return redirect(url_for('index'))
+    if found_club is None or found_competition is None:
+        flash("Club ou compétition introuvable.")
+        return redirect(url_for("index"))
 
     return render_template(
-        'booking.html',
-        club=foundClub,
-        competition=foundCompetition
+        "booking.html",
+        club=found_club,
+        competition=found_competition,
     )
 
 
-@app.route('/purchasePlaces', methods=['POST'])
+@app.route("/purchasePlaces", methods=["POST"])
 def purchasePlaces():
-    competitionName = request.form.get('competition', '')
-    clubName = request.form.get('club', '')
+    competition_name = request.form.get("competition", "").strip()
+    club_name = request.form.get("club", "").strip()
 
     competition = next(
-        (c for c in competitions if c['name'] == competitionName),
-        None
+        (c for c in competitions if c["name"] == competition_name),
+        None,
     )
     club = next(
-        (c for c in clubs if c['name'] == clubName),
-        None
+        (c for c in clubs if c["name"] == club_name),
+        None,
     )
 
     if competition is None or club is None:
-        flash("Club ou competition introuvable.")
-        return redirect(url_for('index'))
+        flash("Club ou compétition introuvable.")
+        return redirect(url_for("index"))
 
+    booking_url = url_for(
+        "book",
+        competition=competition["name"],
+        club=club["name"],
+    )
+
+    # Vérifier la date de la compétition.
     try:
-        dateCompetition = datetime.strptime(
-            competition['date'], '%Y-%m-%d %H:%M:%S'
+        date_competition = datetime.strptime(
+            competition["date"], "%Y-%m-%d %H:%M:%S"
         )
     except (KeyError, TypeError, ValueError):
-        flash("La date de cette competition est invalide.")
-        return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
-        )
+        flash("La date de cette compétition est invalide.")
+        return redirect(booking_url)
 
-    if dateCompetition <= datetime.now():
-        flash("Impossible de reserver une competition passee.")
-        return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
-        )
+    if date_competition <= datetime.now():
+        flash("Impossible de réserver une compétition passée.")
+        return redirect(booking_url)
 
+    # Vérifier le nombre de places demandé.
     try:
-        placesRequired = int(request.form.get('places', ''))
+        places_demandees = int(request.form.get("places", ""))
     except (TypeError, ValueError):
         flash("Veuillez saisir un nombre de places valide.")
-        return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
-        )
+        return redirect(booking_url)
 
-    if placesRequired <= 0:
-        flash("Le nombre de places doit etre superieur a zero.")
-        return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
-        )
+    if places_demandees <= 0:
+        flash("Le nombre de places doit être supérieur à zéro.")
+        return redirect(booking_url)
 
-    if placesRequired > 12:
-        flash("Vous ne pouvez pas reserver plus de 12 places par competition.")
-        return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
-        )
+    # Maximum autorisé par club pour cette compétition :
+    # 12 places au total, et non 12 à chaque réservation.
+    cle_reservation = (club_name, competition_name)
+    places_deja_reservees = reservations.get(cle_reservation, 0)
 
-    if int(club['points']) < placesRequired:
-        flash("Votre club ne possede pas assez de points.")
-        return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
-        )
+    if places_deja_reservees + places_demandees > 12:
+        flash("Vous ne pouvez pas reserver plus de 12 places")
+        return redirect(booking_url)
 
-    if int(competition['numberOfPlaces']) < placesRequired:
-        flash("Il ne reste pas assez de places pour cette competition.")
-        return redirect(
-            url_for('book', competition=competition['name'], club=club['name'])
-        )
+    # Vérifier les points et les places disponibles.
+    try:
+        points_club = int(club["points"])
+        places_disponibles = int(competition["numberOfPlaces"])
+    except (KeyError, TypeError, ValueError):
+        flash("Les points du club ou les places disponibles sont invalides.")
+        return redirect(booking_url)
 
-    # Mettre a jour les places et les points uniquement si la reservation est valide.
-    competition['numberOfPlaces'] = (
-        int(competition['numberOfPlaces']) - placesRequired
+    if points_club < places_demandees:
+        flash("Votre club ne possède pas assez de points.")
+        return redirect(booking_url)
+
+    if places_disponibles < places_demandees:
+        flash("Il ne reste pas assez de places pour cette compétition.")
+        return redirect(booking_url)
+
+    # Modifier les données seulement après toutes les validations.
+    competition["numberOfPlaces"] = places_disponibles - places_demandees
+    club["points"] = points_club - places_demandees
+    reservations[cle_reservation] = (
+        places_deja_reservees + places_demandees
     )
-    club['points'] = int(club['points']) - placesRequired
 
-    flash("Reservation effectuee avec succes !")
+    flash("Réservation effectuée avec succès !")
+
+    competitions_a_venir = []
+    for comp in competitions:
+        try:
+            date_comp = datetime.strptime(
+                comp["date"], "%Y-%m-%d %H:%M:%S"
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        if date_comp > datetime.now():
+            competitions_a_venir.append(comp)
+
     return render_template(
-        'welcome.html',
+        "welcome.html",
         club=club,
-        competitions=competitions
+        competitions=competitions_a_venir,
     )
 
 
-# TODO: Ajouter la route d'affichage du classement des points
+@app.route("/points")
+def points():
+    """Afficher publiquement les clubs classés par points décroissants."""
+    try:
+        classement = sorted(
+            clubs,
+            key=lambda club: int(club["points"]),
+            reverse=True,
+        )
+    except (KeyError, TypeError, ValueError):
+        flash("Impossible de charger le classement des clubs.")
+        return redirect(url_for("index"))
+
+    return render_template("points.html", clubs=classement)
 
 
-@app.route('/logout')
+@app.route("/logout")
 def logout():
-    return redirect(url_for('index'))
+    return redirect(url_for("index"))
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
