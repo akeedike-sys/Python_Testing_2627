@@ -1,4 +1,3 @@
-
 import json
 from functools import wraps
 from datetime import datetime
@@ -28,6 +27,7 @@ def club_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
         club_email = session.get("club_email")
+
         if not club_email:
             flash("Veuillez vous connecter pour continuer.")
             return redirect(url_for("index"))
@@ -238,7 +238,11 @@ def purchasePlaces():
     )
     club['points'] = int(club['points']) - placesRequired
 
-    flash("Reservation effectuee avec succes !")
+    # Confirmer le nombre exact de places achetees.
+    flash(
+        f"Reservation effectuee avec succes : "
+        f"{placesRequired} places achetees."
+    )
 
     return render_template(
         'welcome.html',
